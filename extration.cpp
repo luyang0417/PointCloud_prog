@@ -26,6 +26,21 @@ void extraction(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::
 	cout << "enter tolerance threshold of fitted model: ";
 	float thickness_threshold;
 	cin >> thickness_threshold;
+
+	PointCloudT::Ptr cloud_vox(new PointCloudT);
+	PointCloudT::Ptr cloud_trans(new PointCloudT);
+	voxel_downsizing(cloud, cloud_vox, { 3,3,3 });
+
+	float radius_main(0.0f), radius_branch(0.0f);
+	Eigen::Matrix4f transform_matrix = point_cloud_adjust(cloud_vox, lower_radius_b, upper_radius_b, lower_radius_m, upper_radius_m, thickness_threshold, radius_branch, radius_main);
+	single_cloud_visualization(cloud_vox, 100);
+
+	pcl::transformPointCloud(*cloud, *cloud_trans, transform_matrix);
+	cloud = cloud_trans;
+	single_cloud_visualization(cloud, 100);
+	/*
+	// 摆正
+	// 使点云坐标系与支管坐标系重合
 	ransac_segment_cylinder(cloud, normals, thickness_threshold, lower_radius_b, upper_radius_b, coeffients_init_b, inliers_init_b);
 	pcl::console::print_highlight("branch pipe cylinder parameters: [");
 	for (int i = 0; i < coeffients_init_b->values.size(); ++i) {
@@ -38,8 +53,6 @@ void extraction(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::
 	}
 	cout << "]" << endl;
 
-	// 摆正
-	// 使点云坐标系与支管坐标系重合
 	float x = coeffients_init_b->values[0];
 	float y = coeffients_init_b->values[1];
 	float z = coeffients_init_b->values[2];
@@ -71,25 +84,17 @@ void extraction(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::
 	}
 
 	pcl::console::print_highlight("rotating to z axis direction...\n");
-	pointcloud_Rotate(cloud, -angle_x, 0, 0);
-	pcl::console::print_highlight("after x rotation...\n");
+	pointcloud_Rotate(cloud, -angle_x, angle_y, 0);
+	pcl::console::print_highlight("after rotation...\n");
 	single_cloud_visualization(cloud, 100);
-	pointcloud_Rotate(cloud, 0, angle_y, 0);
-	pcl::console::print_highlight("after y rotation...\n");
-	single_cloud_visualization(cloud, 100);
-	if (rz < 0) {
-		pointcloud_Rotate(cloud, 180, 0, 0);
-		pcl::console::print_highlight("after z reverse...\n");
-		single_cloud_visualization(cloud, 100);
-	}
 	pcl::console::print_highlight("need reverse z? y/n ");
 	string flag;
 	cin >> flag;
 	if (flag == "y") {
 		pointcloud_Rotate(cloud, 180, 0, 0);
 		pcl::console::print_highlight("after z reverse...\n");
-		single_cloud_visualization(cloud, 100);
 	}	
+	single_cloud_visualization(cloud, 100);
 	PointCloudN::Ptr normals_m = compute_normal_cloud(cloud, kdtree, 20);
 	pcl::ModelCoefficients::Ptr coeffients_init_m(new pcl::ModelCoefficients);
 	pcl::PointIndices::Ptr inliers_init_m(new pcl::PointIndices);
@@ -121,19 +126,19 @@ void extraction(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::
 	pointcloud_Rotate(cloud, 0, 0, angle_m_z);
 	// 摆正完成
 	pcl::console::print_highlight("rotation finished...\n");
+	
 	single_cloud_visualization(cloud, 100);
 	
 	// 计算出的焊脚点
 	PointCloudT::Ptr cloud_cal_1(new PointCloudT);
 	PointCloudT::Ptr cloud_cal_2(new PointCloudT);
+	PointCloudT::Ptr cloud_layer(new PointCloudT);
 	cout << "Enter layer thickness" << endl;
 	float layer_thickness;
 	cin >> layer_thickness;
 	float radius_inner = radius - 21;
 	for (float angle = 0; angle < 360; angle += 0.1) {
 		float x1, x2, y1, y2, z1, z2;
-		// 不能用radius，应该用内圈
-		
 		x1 = x2 = (radius_inner + layer_thickness) * cos(angle * M_PI / 180);
 		y1 = y2 = (radius_inner + layer_thickness) * sin(angle * M_PI / 180);
 		z1 = sqrt(pow(coeffients_init_m->values[6], 2) - pow(radius_inner * cos(angle * M_PI / 180), 2)) +
@@ -142,34 +147,80 @@ void extraction(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::
 
 		cloud_cal_1->push_back(*new PointT(x1, y1, z1));
 		cloud_cal_2->push_back(*new PointT(x2, y2, z2));
+		for (float z_layer = z2; z_layer < z1; z_layer += 0.1) {
+			cloud_layer->push_back(*new PointT(x1, y1, z_layer));
+		}
 	}
+	
+	// 可视化计算的焊道
 	pcl::visualization::PCLVisualizer::Ptr viewer_cal(new pcl::visualization::PCLVisualizer("cal"));
 	viewer_cal->addPointCloud(cloud);
 	pcl::visualization::PointCloudColorHandlerCustom<PointT> red(cloud_cal_1, 255, 0, 0);
 	pcl::visualization::PointCloudColorHandlerCustom<PointT> green(cloud_cal_2, 0, 255, 0);
+	pcl::visualization::PointCloudColorHandlerCustom<PointT> blue(cloud_layer, 0, 0, 255);
 	viewer_cal->addPointCloud(cloud_cal_1, red, "cal_1");
 	viewer_cal->addPointCloud(cloud_cal_2, green, "cal_2");
+	pcl::console::print_highlight("need visualize calculated welding surface? y/n ");
+	string viz_sur;
+	cin >> viz_sur;
+	if (viz_sur == "y") {
+		viewer_cal->addPointCloud(cloud_layer, blue, "layer");
+	} 
 	while (!viewer_cal->wasStopped()) {
 		viewer_cal->spinOnce(1000);
 	}
 	viewer_cal->close();
+	*/
+	// 去除支管圆柱
+	PointCloudT::Ptr inliers_cloud(new PointCloudT);
+	PointCloudT::Ptr outliers_cloud(new PointCloudT);
+	PointCloudT::Ptr outliers_cloud_b(new PointCloudT);
 
+	for (PointT point : *cloud) {
+		if (pow(point.x, 2) + pow(point.y, 2) >= pow(radius_branch - 1.5 * thickness_threshold, 2)
+			&& pow(point.x, 2) + pow(point.y, 2) <= pow(radius_branch + 1.5 * thickness_threshold, 2)
+			&& point.z > radius_main + 5) 
+		{
+			outliers_cloud->emplace_back(point);
+		}
+		else 
+		{
+			inliers_cloud->emplace_back(point);
+		}
+	}
+	pcl::console::print_highlight("inliers...\n");
+	single_cloud_visualization(inliers_cloud, 100);
+	pcl::console::print_highlight("outliers...\n");
+	single_cloud_visualization(outliers_cloud, 100);
+	system("pause");
 
+	for (PointT point : *inliers_cloud) {
+		if (pow(point.x, 2) + pow(point.y, 2) >= 1.5 * pow(radius_branch, 2)) 
+		{
+			outliers_cloud->emplace_back(point);
+		}
+		else 
+		{
+			cloud_out->emplace_back(point);
+		}
+	}
+	pcl::console::print_highlight("seam point cloud...\n");
+	single_cloud_visualization(cloud_out);
+	pcl::console::print_highlight("outliers...\n");
+	single_cloud_visualization(outliers_cloud);
+	/*
 	// 提取支管圆柱
 	pcl::ModelCoefficients::Ptr coeffients_b(new pcl::ModelCoefficients);
 	pcl::PointIndices::Ptr inliers_b(new pcl::PointIndices);
 
 	PointCloudN::Ptr normals_2 = compute_normal_cloud(cloud, kdtree, 20);
-	ransac_segment_cylinder(cloud, normals_2, thickness_threshold, lower_radius_b, upper_radius_b, coeffients_b, inliers_b);
-	// 去除支管圆柱
-	PointCloudT::Ptr inliers_cloud(new PointCloudT);
-	PointCloudT::Ptr outliers_cloud(new PointCloudT);
-	PointCloudT::Ptr outliers_cloud_b(new PointCloudT);
+	ransac_segment_cylinder(cloud, normals_2, thickness_threshold, 
+	radius_branch - thickness_threshold, radius_branch + thickness_threshold, coeffients_b, inliers_b);
 	extract_inliers_by_indices(cloud, inliers_cloud, inliers_b, true);
 	extract_inliers_by_indices(cloud, outliers_cloud_b, inliers_b, false);
 	for (PointT point : *outliers_cloud_b) {
 		// 对于 ransac 误提取的支管点云，重新划分回到inliers_cloud中
-		if (point.z < radius_m + 1) {
+		if (point.z < radius_main + 5) {
 			inliers_cloud->emplace_back(point);
 		}
 		else {
@@ -180,20 +231,22 @@ void extraction(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::
 	single_cloud_visualization(inliers_cloud);
 	pcl::console::print_highlight("outliers...\n");
 	single_cloud_visualization(outliers_cloud);
-
+	
 	// 提取主管圆柱
 	pcl::ModelCoefficients::Ptr coeffients_m(new pcl::ModelCoefficients);
 	pcl::PointIndices::Ptr inliers_m(new pcl::PointIndices);
 
 	PointCloudN::Ptr normals_3 = compute_normal_cloud(inliers_cloud, kdtree, 20);
-	ransac_segment_cylinder(inliers_cloud, normals_3, thickness_threshold, lower_radius_m, upper_radius_m, coeffients_m, inliers_m);
+	ransac_segment_cylinder(inliers_cloud, normals_3, thickness_threshold, 
+		radius_main - thickness_threshold, radius_main + thickness_threshold, coeffients_m, inliers_m);
+	
 	// 去除主管圆柱
 	PointCloudT::Ptr outliers_cloud_m(new PointCloudT);
 	extract_inliers_by_indices(inliers_cloud, cloud_out, inliers_m, true);
 	extract_inliers_by_indices(inliers_cloud, outliers_cloud_m, inliers_m, false);
 	for (PointT point : *outliers_cloud_m) {
 		// 对于 ransac 误提取的主管点云，重新划分回到seam中
-		if (pow(point.x, 2) + pow(point.y, 2) <= pow(upper_radius_b, 2)) {
+		if (pow(point.x, 2) + pow(point.y, 2) <= 1.5 * pow(upper_radius_b, 2)) {
 			cloud_out->emplace_back(point);
 		}
 		else {
@@ -204,6 +257,112 @@ void extraction(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::
 	single_cloud_visualization(cloud_out);
 	pcl::console::print_highlight("outliers...\n");
 	single_cloud_visualization(outliers_cloud);
+	*/
+}
+
+void extraction(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out, Eigen::Matrix4f& transformation)
+{
+	pcl::search::KdTree<PointT>::Ptr kdtree(new pcl::search::KdTree<PointT>);
+	PointCloudN::Ptr normals = compute_normal_cloud(cloud, kdtree, 20);
+
+	PointCloudT::Ptr seam(new PointCloudT);
+	pcl::ModelCoefficients::Ptr coeffients_init_b(new pcl::ModelCoefficients);
+	pcl::PointIndices::Ptr inliers_init_b(new pcl::PointIndices);
+	// 外部输入支管圆柱半径及厚度
+	cout << "enter the lower limit of branch pipe radius: ";
+	float lower_radius_b;
+	cin >> lower_radius_b;
+	cout << "enter the upper limit of branch pipe radius: ";
+	float upper_radius_b;
+	cin >> upper_radius_b;
+	// 外部输入主管圆柱半径及厚度
+	cout << "enter the lower limit of main pipe radius: ";
+	float lower_radius_m;
+	cin >> lower_radius_m;
+	cout << "enter the upper limit of main pipe radius: ";
+	float upper_radius_m;
+	cin >> upper_radius_m;
+	cout << "enter tolerance threshold of fitted model: ";
+	float thickness_threshold;
+	cin >> thickness_threshold;
+
+	PointCloudT::Ptr cloud_vox(new PointCloudT);
+	PointCloudT::Ptr cloud_trans(new PointCloudT);
+	voxel_downsizing(cloud, cloud_vox, { 3,3,3 });
+
+	float radius_main(0.0f), radius_branch(0.0f);
+	Eigen::Matrix4f transform_matrix = point_cloud_adjust(cloud_vox, lower_radius_b, upper_radius_b, lower_radius_m, upper_radius_m, thickness_threshold, radius_branch, radius_main);
+	transformation = transform_matrix;
+	single_cloud_visualization(cloud_vox, 100);
+
+	pcl::transformPointCloud(*cloud, *cloud_trans, transform_matrix);
+	cloud = cloud_trans;
+	single_cloud_visualization(cloud, 100);
+	
+	// 去除支管圆柱
+	PointCloudT::Ptr inliers_cloud(new PointCloudT);
+	PointCloudT::Ptr outliers_cloud(new PointCloudT);
+	PointCloudT::Ptr outliers_cloud_b(new PointCloudT);
+
+	for (PointT point : *cloud) {
+		if (pow(point.x, 2) + pow(point.y, 2) >= pow(radius_branch - 1.5 * thickness_threshold, 2)
+			&& pow(point.x, 2) + pow(point.y, 2) <= pow(radius_branch + 1.5 * thickness_threshold, 2)
+			&& point.z > radius_main + 5)
+		{
+			outliers_cloud->emplace_back(point);
+		}
+		else
+		{
+			inliers_cloud->emplace_back(point);
+		}
+	}
+	pcl::console::print_highlight("inliers...\n");
+	single_cloud_visualization(inliers_cloud, 100);
+	pcl::console::print_highlight("outliers...\n");
+	single_cloud_visualization(outliers_cloud, 100);
+	system("pause");
+
+	for (PointT point : *inliers_cloud) {
+		if (pow(point.x, 2) + pow(point.y, 2) >= 1.5 * pow(radius_branch, 2))
+		{
+			outliers_cloud->emplace_back(point);
+		}
+		else
+		{
+			cloud_out->emplace_back(point);
+		}
+	}
+	pcl::console::print_highlight("seam point cloud...\n");
+	single_cloud_visualization(cloud_out);
+	pcl::console::print_highlight("outliers...\n");
+	single_cloud_visualization(outliers_cloud);
+	/*
+	PointCloudT::Ptr cloud_edge(edge_points_detection(cloud_out, 10, 0.8));
+
+	pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer);
+	viewer->addPointCloud(outliers_cloud, "cloud");
+	pcl::visualization::PointCloudColorHandlerCustom<PointT> red(cloud_out, 255, 0, 0);
+	viewer->addPointCloud(cloud_out, red, "cloud_seam");
+	pcl::visualization::PointCloudColorHandlerCustom<PointT> green(cloud_edge, 0, 255, 0);
+	viewer->addPointCloud(cloud_edge, green, "cloud_edge");
+	*/
+	PointCloudT::Ptr cloud_edge_1(new PointCloudT);
+	for (PointT point : *cloud_out) {
+		if (pow(point.x, 2) + pow(point.z, 2) >= pow(radius_main + 0.5 * thickness_threshold, 2)
+			&& pow(point.x, 2) + pow(point.z, 2) <= pow(radius_main + thickness_threshold, 2)) {
+			cloud_edge_1->push_back(point);
+		}
+	}
+	pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer);
+	pcl::visualization::PointCloudColorHandlerCustom<PointT> red(cloud_edge_1, 255, 0, 0);
+	viewer->addPointCloud(cloud_edge_1, red, "cloud_edge_1");
+	viewer->addPointCloud(cloud_out, "cloud_out");
+	viewer->addCoordinateSystem(100);
+	while (!viewer->wasStopped()) {
+		viewer->spinOnce(1000);
+
+	}
+	viewer->close();
 }
 
 void normal_visualization(PointCloudT::Ptr cloud, PointCloudN::Ptr normals, PointCloudT::Ptr viewport)
@@ -403,5 +562,158 @@ PointCloudN::Ptr compute_normal_cloud(PointCloudT::Ptr& cloud, pcl::search::KdTr
 		normal_visualization(cloud, normals, viewport, 20);
 	}
 	return normals;
+}
+
+Eigen::Matrix4f point_cloud_adjust(PointCloudT::Ptr& cloud, float lower_radius_b, float upper_radius_b, 
+	float lower_radius_m, float upper_radius_m, float thickness_threshold, float& radius_branch, float& radius_main)
+{
+	Eigen::Matrix4f transform_matrix = Eigen::Matrix4f::Identity();
+	// 摆正
+	// 使点云坐标系与支管坐标系重合
+	pcl::search::KdTree<PointT>::Ptr kdtree(new pcl::search::KdTree<PointT>);
+	PointCloudN::Ptr normals = compute_normal_cloud(cloud, kdtree, 20);
+	pcl::ModelCoefficients::Ptr coeffients_init_b(new pcl::ModelCoefficients);
+	pcl::PointIndices::Ptr inliers_init_b(new pcl::PointIndices);
+	ransac_segment_cylinder(cloud, normals, thickness_threshold, lower_radius_b, upper_radius_b, coeffients_init_b, inliers_init_b);
+	pcl::console::print_highlight("branch pipe cylinder parameters: [");
+	for (int i = 0; i < coeffients_init_b->values.size(); ++i) {
+		if (i != coeffients_init_b->values.size() - 1) {
+			cout << coeffients_init_b->values.at(i) << " ";
+		}
+		else {
+			cout << coeffients_init_b->values.at(i);
+		}
+	}
+	cout << "]" << endl;
+
+	float x = coeffients_init_b->values[0];
+	float y = coeffients_init_b->values[1];
+	float z = coeffients_init_b->values[2];
+	float rx = coeffients_init_b->values[3];
+	float ry = coeffients_init_b->values[4];
+	float rz = coeffients_init_b->values[5];
+	float radius = coeffients_init_b->values[6];
+	radius_branch = radius;
+	float angle_x, angle_y;
+
+	// 圆柱轴线可视化
+	viz_cylinder_axis(cloud, x, y, z, rx, ry, rz);
+	// 移到中心
+	pointcloud_Move(cloud, -x, -y, -z);
+	transform_matrix(0, 3) += -x;
+	transform_matrix(1, 3) += -y;
+	transform_matrix(2, 3) += -z;
+	single_cloud_visualization(cloud, 100);
+
+	if (abs(rx - 1) < 1e-2 || abs(rx + 1) < 1e-2 || abs(ry) < 1e-2) {
+		angle_x = 0;
+	}
+	else {
+		angle_x = asin(abs(ry) / sqrt(1 - pow(rx, 2))) * 180 / M_PI;
+
+	}
+	if (ry * rz < 0) {
+		angle_x *= -1;
+	}
+	angle_y = 90 - acos(rx) * 180 / M_PI;
+	if (rz < 0) {
+		angle_y *= -1;
+	}
+
+	pcl::console::print_highlight("rotating to z axis direction...\n");
+	transform_matrix = pointcloud_Rotate(cloud, -angle_x, angle_y, 0, true) * transform_matrix;
+
+	pcl::console::print_highlight("after rotation...\n");
+	single_cloud_visualization(cloud, 100);
+	pcl::console::print_highlight("need reverse z? y/n ");
+	string flag;
+	cin >> flag;
+	if (flag == "y") {
+		// pointcloud_Rotate(cloud, 180, 0, 0);
+		transform_matrix = pointcloud_Rotate(cloud, 180, 0, 0, true) * transform_matrix;
+		pcl::console::print_highlight("after z reverse...\n");
+	}
+	single_cloud_visualization(cloud, 100);
+	PointCloudN::Ptr normals_m = compute_normal_cloud(cloud, kdtree, 20);
+	pcl::ModelCoefficients::Ptr coeffients_init_m(new pcl::ModelCoefficients);
+	pcl::PointIndices::Ptr inliers_init_m(new pcl::PointIndices);
+	ransac_segment_cylinder(cloud, normals_m, thickness_threshold, lower_radius_m, upper_radius_m, coeffients_init_m, inliers_init_m);
+	pcl::console::print_highlight("main pipe cylinder parameters: [");
+	for (int i = 0; i < coeffients_init_m->values.size(); ++i) {
+		if (i != coeffients_init_m->values.size() - 1) {
+			cout << coeffients_init_m->values.at(i) << " ";
+		}
+		else {
+			cout << coeffients_init_m->values.at(i);
+		}
+	}
+	cout << "]" << endl;
+	float x_m = coeffients_init_m->values[0];
+	float y_m = coeffients_init_m->values[1];
+	float z_m = coeffients_init_m->values[2];
+	float rx_m = coeffients_init_m->values[3];
+	float ry_m = coeffients_init_m->values[4];
+	float rz_m = coeffients_init_m->values[5];
+	float radius_m = coeffients_init_m->values[6];
+	radius_main = radius_m;
+	viz_cylinder_axis(cloud, x_m, y_m, z_m, rx_m, ry_m, rz_m);
+
+	float angle_m_z = acos(ry_m) * 180 / M_PI;
+	if (rx_m > 0) {
+		angle_m_z *= -1;
+	}
+	pointcloud_Move(cloud, 0, 0, -1 * coeffients_init_m->values[2]);
+	transform_matrix(2, 3) += -coeffients_init_m->values[2];
+	// pointcloud_Rotate(cloud, 0, 0, angle_m_z);
+	transform_matrix = pointcloud_Rotate(cloud, 0, 0, angle_m_z, true) * transform_matrix;
+
+	// 摆正完成
+	pcl::console::print_highlight("rotation finished...\n");
+	single_cloud_visualization(cloud, 100);
+
+	// 计算出的焊脚点
+	PointCloudT::Ptr cloud_cal_1(new PointCloudT);
+	PointCloudT::Ptr cloud_cal_2(new PointCloudT);
+	PointCloudT::Ptr cloud_layer(new PointCloudT);
+	cout << "Enter layer thickness" << endl;
+	float layer_thickness;
+	cin >> layer_thickness;
+	float radius_inner = radius - 21;
+	for (float angle = 0; angle < 360; angle += 0.1) {
+		float x1, x2, y1, y2, z1, z2;
+		x1 = x2 = (radius_inner + layer_thickness) * cos(angle * M_PI / 180);
+		y1 = y2 = (radius_inner + layer_thickness) * sin(angle * M_PI / 180);
+		z1 = sqrt(pow(coeffients_init_m->values[6], 2) - pow(radius_inner * cos(angle * M_PI / 180), 2)) +
+			layer_thickness * tan(40 * M_PI / 180);
+		z2 = sqrt(pow(coeffients_init_m->values[6], 2) - pow(x1, 2));
+
+		cloud_cal_1->push_back(*new PointT(x1, y1, z1));
+		cloud_cal_2->push_back(*new PointT(x2, y2, z2));
+		for (float z_layer = z2; z_layer < z1; z_layer += 0.1) {
+			cloud_layer->push_back(*new PointT(x1, y1, z_layer));
+		}
+	}
+
+	// 可视化计算的焊道
+	pcl::visualization::PCLVisualizer::Ptr viewer_cal(new pcl::visualization::PCLVisualizer("cal"));
+	viewer_cal->addPointCloud(cloud);
+	pcl::visualization::PointCloudColorHandlerCustom<PointT> red(cloud_cal_1, 255, 0, 0);
+	pcl::visualization::PointCloudColorHandlerCustom<PointT> green(cloud_cal_2, 0, 255, 0);
+	pcl::visualization::PointCloudColorHandlerCustom<PointT> blue(cloud_layer, 0, 0, 255);
+	viewer_cal->addPointCloud(cloud_cal_1, red, "cal_1");
+	viewer_cal->addPointCloud(cloud_cal_2, green, "cal_2");
+	pcl::console::print_highlight("need visualize calculated welding surface? y/n ");
+	string viz_sur;
+	cin >> viz_sur;
+	if (viz_sur == "y") {
+		viewer_cal->addPointCloud(cloud_layer, blue, "layer");
+	}
+	while (!viewer_cal->wasStopped()) {
+		viewer_cal->spinOnce(1000);
+	}
+	viewer_cal->close();
+
+
+	return transform_matrix;
 }
 

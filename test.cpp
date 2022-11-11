@@ -50,7 +50,7 @@ PointCloudT::Ptr radius_outliers_removal(PointCloudT::Ptr& cloud, double search_
 }
 
 int main(int argc, char** argv) {
-	string filepath("D:/PointCloud/welding_test_trim.pcd");
+	string filepath("D:/PointCloud/fused_partial_cloud.pcd");
 	PointCloudT::Ptr cloud(new PointCloudT);
 	load_pcd_cloud(filepath, cloud);
 	// load_ply_cloud(filepath, cloud);
@@ -60,33 +60,45 @@ int main(int argc, char** argv) {
 	pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
 	pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
 
+	PointCloudT::Ptr cloud_vox(new PointCloudT);
+	voxel_downsizing(cloud, cloud_vox, { 3,3,3 });
+	single_cloud_visualization(cloud_vox, 100);
 
-	PointCloudT::Ptr cloud_ext(new PointCloudT);
-	extraction(cloud, cloud_ext);
+	PointCloudT::Ptr cloud_seam(new PointCloudT);
+	Eigen::Matrix4f transform_matrix = Eigen::Matrix4f::Identity();
+	extraction(cloud, cloud_seam, transform_matrix);
+	pcl::console::print_highlight("extracted seam cloud has ");
+	cout << cloud_seam->size() << " points." << endl;
 	system("pause");
 	// zoom_out_point_cloud(cloud, 100000);
-	single_cloud_visualization(cloud, 100);
-	PointCloudT::Ptr cloud_sor = statistic_outliers_removal(cloud, 20);
-	single_cloud_visualization(cloud_sor, 100);
-	PointCloudT::Ptr cloud_ror = radius_outliers_removal(cloud, 10);
-	single_cloud_visualization(cloud_ror, 100);
+	single_cloud_visualization(cloud_seam, 100);
 
+	PointCloudT::Ptr cloud_sor = statistic_outliers_removal(cloud_seam, 20);
+	pcl::console::print_highlight("statistic outliers removal...\n");
+	single_cloud_visualization(cloud_sor, 100);
+	PointCloudT::Ptr cloud_ror = radius_outliers_removal(cloud_seam, 10);
+	pcl::console::print_highlight("radius outliers removal...\n");
+	single_cloud_visualization(cloud_ror, 100);
+	/*
 	PointCloudT::Ptr cloud_roi(new PointCloudT);
 	roi_extraction(cloud_ror, cloud_roi, filepath.substr(0, filepath.length() - 4) + "_roi.pcd");
 	single_cloud_visualization(cloud_roi, 100);
-
-	PointCloudT::Ptr cloud_voxel(new PointCloudT);
-	voxel_downsizing(cloud_roi, cloud_voxel, { 3,3,3 });
-	single_cloud_visualization(cloud_voxel, 100);
-	// pointcloud_Move(cloud, 10, 10, 10);
-	// pointcloud_Rotate(cloud, 15, 15, 15);
-	// single_cloud_visualization(cloud, 100);
-
-	PointCloudT::Ptr cloud_seam(new PointCloudT);
-	extraction(cloud_voxel, cloud_seam);
+	*/
+	pcl::console::print_highlight("start extracting edges...\n");
 	single_cloud_visualization(cloud_seam, 100);
 	PointCloudT::Ptr cloud_edge(edge_points_detection(cloud_seam, 10, 0.75));
 	single_cloud_visualization(cloud_edge, 100);
-
+	pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer);
+	PointCloudT::Ptr cloud_transform(new PointCloudT);
+	pcl::transformPointCloud(*cloud, *cloud_transform, transform_matrix);
+	viewer->addPointCloud(cloud_transform, "cloud");
+	pcl::visualization::PointCloudColorHandlerCustom<PointT> red(cloud_seam, 255, 0, 0);
+	viewer->addPointCloud(cloud_seam, red, "cloud_seam");
+	pcl::visualization::PointCloudColorHandlerCustom<PointT> green(cloud_edge, 0, 255, 0);
+	viewer->addPointCloud(cloud_edge, green, "cloud_edge");
+	while (!viewer->wasStopped()) {
+		viewer->spinOnce(1000);
+	}
+	viewer->close();
 
 }

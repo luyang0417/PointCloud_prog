@@ -200,55 +200,6 @@ void registration(PointCloudT::Ptr cloud_in, PointCloudT::Ptr cloud_out)
 	registration(cloud_source, cloud_target, cloud_out);
 }
 
-void voxel_downsizing(PointCloudT::Ptr cloud_in, PointCloudT::Ptr cloud_out, vector<float> leaf_size) {
-	pcl::console::print_highlight("start downsizing...\n");
-	clock_t start = clock();
-	pcl::VoxelGrid<PointT>::Ptr grid(new pcl::VoxelGrid<PointT>);
-	if (leaf_size.size() != 3) {
-		pcl::console::print_highlight("wrong params! 3 leaf size params are needed. \n");
-		return;
-	}
-	grid->setLeafSize(leaf_size[0], leaf_size[1], leaf_size[2]);
-	grid->setInputCloud(cloud_in);
-	grid->filter(*cloud_out);
-	pcl::console::print_highlight("point cloud size after downsizing: ");
-	cout << cloud_out->size() << endl;
-	clock_t end = clock();
-	double time = (double)(end - start) / (double)CLOCKS_PER_SEC;
-	pcl::console::print_highlight("time used for voxel grid filtering: ");
-	cout << time << "s. " << endl;
-}
-
-void voxel_downsizing(PointCloudT::Ptr cloud_in, PointCloudT::Ptr cloud_out) {
-	pcl::console::print_highlight("start downsizing...\n");
-	vector<float> leaf_size;
-	pcl::console::print_highlight("enter voxel size: x = ");
-	float temp(0);
-	cin >> temp;
-	leaf_size.push_back(temp);
-	pcl::console::print_highlight(" ,y = ");
-	cin >> temp;
-	leaf_size.push_back(temp);
-	pcl::console::print_highlight(" ,z = ");
-	cin >> temp;
-	leaf_size.push_back(temp);
-	clock_t start = clock();
-	pcl::VoxelGrid<PointT>::Ptr grid(new pcl::VoxelGrid<PointT>);
-	if (leaf_size.size() != 3) {
-		pcl::console::print_highlight("wrong params! 3 leaf size params are needed. \n");
-		return;
-	}
-	grid->setLeafSize(leaf_size[0], leaf_size[1], leaf_size[2]);
-	grid->setInputCloud(cloud_in);
-	grid->filter(*cloud_out);
-	pcl::console::print_highlight("point cloud size after downsizing: ");
-	cout << cloud_out->size() << endl;
-	clock_t end = clock();
-	double time = (double)(end - start) / (double)CLOCKS_PER_SEC;
-	pcl::console::print_highlight("time used for voxel grid filtering: ");
-	cout << time << "s. " << endl;
-}
-
 void ap_callback(const pcl::visualization::AreaPickingEvent& event, void* args)
 {
 	callback_args* data = (callback_args*)args;

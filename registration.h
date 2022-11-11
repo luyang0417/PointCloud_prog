@@ -34,11 +34,11 @@ void remove_zero(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
 void single_cloud_visualization(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
 
 void voxel_downsizing(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, std::vector<float> leaf_size);
-*/
+
 void voxel_downsizing(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out, std::vector<float> leaf_size);
 
 void voxel_downsizing(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out);
-
+*/
 void ap_callback(const pcl::visualization::AreaPickingEvent& event, void* args);
 
 void roi_extraction(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_input, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_output, std::string filename);

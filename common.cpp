@@ -54,6 +54,48 @@ void pointcloud_Rotate(PointCloudT::Ptr& cloud, double angle_x, double angle_y, 
 	cloud = cloud_rotate_z;
 }
 
+Eigen::Matrix4f pointcloud_Rotate(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, double angle_x, double angle_y, double angle_z, bool ret_matrix)
+{
+	Eigen::Matrix4f transform_matrix = Eigen::Matrix4f::Identity();
+	shared_ptr<Eigen::Matrix4f> res = make_shared<Eigen::Matrix4f>(transform_matrix);
+	if (ret_matrix) {
+		PointCloudT::Ptr cloud_rotate_x(new PointCloudT);
+		PointCloudT::Ptr cloud_rotate_y(new PointCloudT);
+		PointCloudT::Ptr cloud_rotate_z(new PointCloudT);
+		Eigen::Matrix4f rotation_x = Eigen::Matrix4f::Identity();
+		Eigen::Matrix4f rotation_y = Eigen::Matrix4f::Identity();
+		Eigen::Matrix4f rotation_z = Eigen::Matrix4f::Identity();
+		angle_x *= M_PI / 180;
+		angle_y *= M_PI / 180;
+		angle_z *= M_PI / 180;
+		rotation_x(1, 1) = cos(angle_x);
+		rotation_x(1, 2) = sin(angle_x);
+		rotation_x(2, 1) = -sin(angle_x);
+		rotation_x(2, 2) = cos(angle_x);
+		pcl::transformPointCloud(*cloud, *cloud_rotate_x, rotation_x);
+
+		rotation_y(0, 0) = cos(angle_y);
+		rotation_y(0, 2) = -sin(angle_y);
+		rotation_y(2, 0) = sin(angle_y);
+		rotation_y(2, 2) = cos(angle_y);
+		pcl::transformPointCloud(*cloud_rotate_x, *cloud_rotate_y, rotation_y);
+
+		rotation_z(0, 0) = cos(angle_z);
+		rotation_z(0, 1) = sin(angle_z);
+		rotation_z(1, 0) = -sin(angle_z);
+		rotation_z(1, 1) = cos(angle_z);
+		pcl::transformPointCloud(*cloud_rotate_y, *cloud_rotate_z, rotation_z);
+
+		cloud = cloud_rotate_z;
+		return rotation_z * rotation_y * rotation_x;
+
+	}
+	else {
+		pointcloud_Rotate(cloud, angle_x, angle_y, angle_z);
+	}
+	return transform_matrix;
+}
+
 void voxel_downsizing(PointCloudT::Ptr cloud, vector<float> leaf_size)
 {
 	pcl::console::print_highlight("start downsizing...\n");
@@ -69,6 +111,56 @@ void voxel_downsizing(PointCloudT::Ptr cloud, vector<float> leaf_size)
 	grid->filter(*cloud);
 	pcl::console::print_highlight("point cloud size after downsizing: ");
 	cout << cloud->size() << endl;
+	clock_t end = clock();
+	double time = (double)(end - start) / (double)CLOCKS_PER_SEC;
+	pcl::console::print_highlight("time used for voxel grid filtering: ");
+	cout << time << "s. " << endl;
+}
+
+
+void voxel_downsizing(PointCloudT::Ptr cloud_in, PointCloudT::Ptr cloud_out, vector<float> leaf_size) {
+	pcl::console::print_highlight("start downsizing...\n");
+	clock_t start = clock();
+	pcl::VoxelGrid<PointT>::Ptr grid(new pcl::VoxelGrid<PointT>);
+	if (leaf_size.size() != 3) {
+		pcl::console::print_highlight("wrong params! 3 leaf size params are needed. \n");
+		return;
+	}
+	grid->setLeafSize(leaf_size[0], leaf_size[1], leaf_size[2]);
+	grid->setInputCloud(cloud_in);
+	grid->filter(*cloud_out);
+	pcl::console::print_highlight("point cloud size after downsizing: ");
+	cout << cloud_out->size() << endl;
+	clock_t end = clock();
+	double time = (double)(end - start) / (double)CLOCKS_PER_SEC;
+	pcl::console::print_highlight("time used for voxel grid filtering: ");
+	cout << time << "s. " << endl;
+}
+
+void voxel_downsizing(PointCloudT::Ptr cloud_in, PointCloudT::Ptr cloud_out) {
+	pcl::console::print_highlight("start downsizing...\n");
+	vector<float> leaf_size;
+	pcl::console::print_highlight("enter voxel size: x = ");
+	float temp(0);
+	cin >> temp;
+	leaf_size.push_back(temp);
+	pcl::console::print_highlight(" ,y = ");
+	cin >> temp;
+	leaf_size.push_back(temp);
+	pcl::console::print_highlight(" ,z = ");
+	cin >> temp;
+	leaf_size.push_back(temp);
+	clock_t start = clock();
+	pcl::VoxelGrid<PointT>::Ptr grid(new pcl::VoxelGrid<PointT>);
+	if (leaf_size.size() != 3) {
+		pcl::console::print_highlight("wrong params! 3 leaf size params are needed. \n");
+		return;
+	}
+	grid->setLeafSize(leaf_size[0], leaf_size[1], leaf_size[2]);
+	grid->setInputCloud(cloud_in);
+	grid->filter(*cloud_out);
+	pcl::console::print_highlight("point cloud size after downsizing: ");
+	cout << cloud_out->size() << endl;
 	clock_t end = clock();
 	double time = (double)(end - start) / (double)CLOCKS_PER_SEC;
 	pcl::console::print_highlight("time used for voxel grid filtering: ");

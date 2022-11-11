@@ -5,6 +5,8 @@
 
 void extraction(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out);
 
+void extraction(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out, Eigen::Matrix4f& transformation);;
+
 void normal_visualization(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::Normal>::Ptr normals, pcl::PointCloud<pcl::PointXYZ>::Ptr viewport);
 
 void normal_visualization(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::Normal>::Ptr normals, pcl::PointCloud<pcl::PointXYZ>::Ptr viewport, int level);
@@ -30,3 +32,6 @@ void viz_cylinder_axis(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, float x, floa
 void viz_cylinder_axis(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, pcl::ModelCoefficients::Ptr& coefficients);
 
 pcl::PointCloud<pcl::Normal>::Ptr compute_normal_cloud(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, pcl::search::KdTree<pcl::PointXYZ>::Ptr& kdtree, int k_search);
+
+Eigen::Matrix4f point_cloud_adjust(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, float lower_radius_b, float upper_radius_b, float lower_radius_m, float upper_radius_m, float thickness_threshold, float& radius_b, float& radius_m);
+

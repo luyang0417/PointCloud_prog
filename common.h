@@ -33,7 +33,13 @@ void pointcloud_Move(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, double dx, doub
 
 void pointcloud_Rotate(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, double angle_x, double angle_y, double angle_z);
 
+Eigen::Matrix4f pointcloud_Rotate(pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, double angle_x, double angle_y, double angle_z, bool ret_matrix);
+
 void voxel_downsizing(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, std::vector<float> leaf_size);
+
+void voxel_downsizing(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out, std::vector<float> leaf_size);
+
+void voxel_downsizing(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_out);
 
 void remove_zero(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
 
